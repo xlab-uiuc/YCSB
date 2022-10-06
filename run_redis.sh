@@ -37,19 +37,6 @@ fi
 sh lock_cpu_freq.sh
 sh check_cpu_freq.sh
 
-
-echo "**********"
-echo "LOAD PHASE"
-echo "**********"
-echo ""
-./bin/ycsb load redis -s -P workloads/workload$WORKLOAD -p "redis.host=127.0.0.1" -p "redis.port=6379" \
-    -threads $THREADS -target $TARGET > output/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Load.txt
-echo ""
-echo "*********"
-echo "RUN PHASE"
-echo "*********"
-echo ""
-
 REDIS_PID=`pgrep redis-server`
 echo "redis-server pid = ${REDIS_PID}"
 echo "monitoring redis memory usage ..."
@@ -58,11 +45,22 @@ echo "monitoring redis memory usage ..."
 sh get_mem.sh $REDIS_PID > output/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_redis_mem.txt&
 MEM_MONITOR_PID=$!
 
+echo "**********"
+echo "LOAD PHASE"
+echo "**********"
+echo ""
+./bin/ycsb load redis -s -P workloads/workload$WORKLOAD -p "redis.host=127.0.0.1" -p "redis.port=6379" \
+    -threads $THREADS -target $TARGET > output/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Load.txt
+
 echo "lauching perf ..."
 sudo perf stat -e LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses -p $REDIS_PID -o output/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf.txt&
 PERF_PID=$!
 
-
+echo ""
+echo "*********"
+echo "RUN PHASE"
+echo "*********"
+echo ""
 # actual YSCB client 
 ./bin/ycsb run redis -s -P workloads/workload$WORKLOAD -p "redis.host=127.0.0.1" -p "redis.port=6379" \
     -threads $THREADS -target $TARGET > output/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Run.txt
