@@ -67,7 +67,7 @@ echo ""
 
 # end background tasks
 sudo kill -INT $PERF_PID
-sudo kill -INT $MEM_MONITOR_PID
+sudo pkill -f "get_mem.sh"
 
 # unlock CPU freq to on demand
 sh unlock_cpu_freq.sh
