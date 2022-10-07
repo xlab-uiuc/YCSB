@@ -5,12 +5,15 @@ WORKLOAD=$1
 NODE_CONFIG=$2
 # Change local parameters here
 THREADS=12   # number of threads
-TARGET=100000 # requests per second
-
+if [ ! $3 ]; then
+    TARGET=100000 # requests per second
+else 
+    TARGET=$3
+fi
 
 # stop and restart redis
 if [ `redis-cli ping` == "PONG" ]; then
-    echo "[Shutting down the Redis.]"
+    echo "[Shutting down the Redis...]"
     redis-cli shutdown
     # sudo systemctl stop redis.service
     if [ -z `redis-cli ping` ]; then
