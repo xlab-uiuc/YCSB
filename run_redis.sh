@@ -1,11 +1,24 @@
 #!/bin/bash
 
+# example commands:
+# mkdir output_experiment3
+# sudo ./run_redis.sh b remote 50000 output_experiment3/output_remote  or:
+# sudo ./run_redis.sh a local loop output_experiment3/output_local
+# python3 process_output.py -i output_experiment3/output_remote/ -o report/experiment3/remote.xlsx
+
+# Command to stop Redis server if nother else would work:
+# /etc/init.d/redis-server stop
+
 # script patameters passed from terminal
 WORKLOAD=$1
 NODE_CONFIG=$2
 [ ! $4 ] && OUTPUT_FOLDER="output" || OUTPUT_FOLDER=$4
+
 # Change local parameters here
-THREADS=12   # number of threads
+THREADS=12      # number of threads
+LOOP_BASE=5000     # the starting point of the loop
+LOOP_STEP=1000  # the step of the loop
+LOOP_ITER=11    # the number of iterations of the loop
 if [ ! $3 ]; then
     TARGET=100000 # requests per second
 elif [ $3 == "loop" ]; then
@@ -13,6 +26,19 @@ elif [ $3 == "loop" ]; then
 else
     QPS_LOOP=0
     TARGET=$3
+fi
+
+# if no parameter is passed, print help info
+if [ ! $1 ]; then
+    echo "Usage:"
+    echo ""
+    echo "Run Experiment:"
+    echo "sudo ./run_redis.sh b remote 50000 output_experiment3/output_remote"
+    echo ""
+    echo "Data Process:"
+    echo "python3 process_output.py -i output_experiment3/output_remote/ -o report/experiment3/remote.xlsx"
+    echo ""
+    exit 0
 fi
 
 # stop and restart redis
@@ -49,13 +75,14 @@ echo "redis-server pid = ${REDIS_PID}"
 
 
 # Set ITERATION to 10 if QPS_LOOP is 1
-[ $QPS_LOOP == 1 ] && ITERATION=10 || ITERATION=1
-for ((i=1;i<=$ITERATION;i++)); do
+[ $QPS_LOOP == 1 ] && ITERATION=$LOOP_ITER || ITERATION=1
+for ((i=0;i<$ITERATION;i++)); do
 
     if [ $QPS_LOOP == 1 ]; then
-        TARGET=$(($i*5000))
+        TARGET=$(($LOOP_BASE+$i*$LOOP_STEP))
         echo "========= QPS - $TARGET ========="
     fi
+    # continue # for testing
 
     # clear redis database
     echo "[Flushing Redis...]"
