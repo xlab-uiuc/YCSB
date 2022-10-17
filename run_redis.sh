@@ -16,9 +16,9 @@ NODE_CONFIG=$2
 
 # Change local parameters here
 THREADS=12      # number of threads
-LOOP_BASE=5000     # the starting point of the loop
+LOOP_BASE=45000     # the starting point of the loop
 LOOP_STEP=1000  # the step of the loop
-LOOP_ITER=11    # the number of iterations of the loop
+LOOP_ITER=6    # the number of iterations of the loop
 if [ ! $3 ]; then
     TARGET=100000 # requests per second
 elif [ $3 == "loop" ]; then
@@ -110,7 +110,8 @@ for ((i=0;i<$ITERATION;i++)); do
     echo "*************"
     echo ""
     # actual YSCB client 
-    ./bin/ycsb run redis -s -P workloads/workload$WORKLOAD -p "redis.host=127.0.0.1" -p "redis.port=6379" \
+    ./bin/ycsb run redis -s -P workloads/workload$WORKLOAD \
+        -p "redis.host=127.0.0.1" -p "redis.port=6379" \
         -threads $THREADS -target $TARGET > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Run.txt
     
     # end background tasks

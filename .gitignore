@@ -1,8 +1,9 @@
 # ignore compiled byte code
-target
+# target
 
 # ignore output files from testing
 output*
+report*
 
 # ignore standard Eclipse files
 .project
