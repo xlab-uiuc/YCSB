@@ -16,9 +16,9 @@ NODE_CONFIG=$2
 
 # Change local parameters here
 THREADS=12      # number of threads
-LOOP_BASE=45000     # the starting point of the loop
-LOOP_STEP=1000  # the step of the loop
-LOOP_ITER=6    # the number of iterations of the loop
+LOOP_BASE=5000     # the starting point of the loop
+LOOP_STEP=5000  # the step of the loop
+LOOP_ITER=11    # the number of iterations of the loop
 if [ ! $3 ]; then
     TARGET=100000 # requests per second
 elif [ $3 == "loop" ]; then
