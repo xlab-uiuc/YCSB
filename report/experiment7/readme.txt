@@ -1,0 +1,1 @@
+run local YCSB while running cxl_mem_test to saturate the remote throughput

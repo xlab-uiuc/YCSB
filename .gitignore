@@ -3,7 +3,7 @@
 
 # ignore output files from testing
 output*
-report*
+# report*
 
 # ignore standard Eclipse files
 .project
