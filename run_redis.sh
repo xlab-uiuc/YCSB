@@ -16,9 +16,9 @@ NODE_CONFIG=$2
 
 # Change local parameters here
 THREADS=12      # number of threads
-LOOP_BASE=50000     # the starting point of the loop
-LOOP_STEP=5000  # the step of the loop
-LOOP_ITER=5     # the number of iterations of the loop
+LOOP_BASE=5000     # the starting point of the loop
+LOOP_STEP=10000  # the step of the loop
+LOOP_ITER=7     # the number of iterations of the loop
 if [ ! $3 ]; then
     TARGET=100000 # requests per second
 elif [ $3 == "loop" ]; then
@@ -58,7 +58,7 @@ elif [ "$NODE_CONFIG" == "remote" ]; then
     sudo numactl --cpunodebind=0 --membind=1 redis-server --daemonize yes
 elif [ "$NODE_CONFIG" == "interleave" ]; then
     sudo sh ./load_cxl_mem.sh
-    sudo numactl --cpunodebind=0 --interleave 0,1 redis-server --daemonize yes
+    sudo numactl --cpunodebind=0 --interleave 0,1,2 redis-server --daemonize yes
 else
     echo "Wrong NUMA config."
     exit 1
@@ -105,9 +105,9 @@ for ((i=0;i<$ITERATION;i++)); do
         -threads $THREADS > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Load.txt
 
     echo "lauching perf ..."
-    #sudo perf stat -e LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses -p $REDIS_PID -o $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf.txt&
+    sudo perf stat -e LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses -p $REDIS_PID -o $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf.txt&
     #sudo perf stat -e L1-dcache-load-misses,L1-dcache-loads,L1-dcache-stores,L1-icache-load-misses -p $REDIS_PID -o $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf_L1.txt&
-    #PERF_PID=$!
+    PERF_PID=$!
     #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune -collect uarch-exploration -target-pid $REDIS_PID -result-dir $OUTPUT_FOLDER/vtune_out&
 
     echo ""
@@ -121,7 +121,7 @@ for ((i=0;i<$ITERATION;i++)); do
         -threads $THREADS -target $TARGET > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Run.txt
     
     # end background tasks
-    #sudo kill -INT $PERF_PID
+    sudo kill -INT $PERF_PID
     #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune -r $OUTPUT_FOLDER/vtune_out -command stop
     #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune  -report summary -result-dir $OUTPUT_FOLDER/vtune_out/ -report-output $OUTPUT_FOLDER/vtune_summary.txt  
     sudo pkill -f "get_mem.sh"

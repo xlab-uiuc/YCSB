@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import argparse
 
+PARSE_PERF = True
+
 def parse_output(output_folder="output"):
     overall_dict = {}
     print("Processed Files:")
@@ -26,9 +28,9 @@ def parse_output(output_folder="output"):
                     words = line.split(',')
                     if words[0].strip() == "[READ]" and words[1].strip()[:4] == "99th":
                         read_tail_latency = words[2].strip()
-                    #elif words[0].strip() == "[READ-MODIFY-WRITE]" and words[1].strip()[:4] == "99th":
+                    elif words[0].strip() == "[READ-MODIFY-WRITE]" and words[1].strip()[:4] == "99th":
                     #elif words[0].strip() == "[INSERT]" and words[1].strip()[:4] == "99th":
-                    elif words[0].strip() == "[UPDATE]" and words[1].strip()[:4] == "99th":
+                    #elif words[0].strip() == "[UPDATE]" and words[1].strip()[:4] == "99th":
                     # dummy
                     #elif words[0].strip() == "[CLEANUP]" and words[1].strip()[:4] == "99th":
                         update_tail_latency = words[2].strip()
@@ -71,20 +73,25 @@ def write_report(overall_dict):
 
 def write_excel(overall_dict, filename="report.xlsx"):
     index = []
-    #d = {"Redis Mem Size": [], "Ops/sec": [], "Read": [], "Update": [], "Load Miss Rate": [], "Write Miss Rate": [],
-    #     "Loads": [], "Load Misses": [], "Writes": [], "Write Misses": []}
-    d = {"Redis Mem Size": [], "Ops/sec": [], "Read": [], "Update": []}
+    d = {}
+    if PARSE_PERF:
+        d = {"Redis Mem Size": [], "Ops/sec": [], "Read": [], "Update": [], "Load Miss Rate": [], "Write Miss Rate": [],
+             "Loads": [], "Load Misses": [], "Writes": [], "Write Misses": []}
+    else:
+        d = {"Redis Mem Size": [], "Ops/sec": [], "Read": [], "Update": []}
+
     for file, data in overall_dict.items():
         d["Redis Mem Size"].append(data["redis"])
         d["Ops/sec"].append(data["Run"][2])
         d["Read"].append(data["Run"][0])
         d["Update"].append(data["Run"][1])
-        #d["Load Miss Rate"].append(data["perf"]["LLC-load-misses"][0] / data["perf"]["LLC-loads"][0])
-        #d["Write Miss Rate"].append(data["perf"]["LLC-store-misses"][0] / data["perf"]["LLC-stores"][0])
-        #d["Loads"].append(data["perf"]["LLC-loads"][0])
-        #d["Load Misses"].append(data["perf"]["LLC-load-misses"][0])
-        #d["Writes"].append(data["perf"]["LLC-stores"][0])
-        #d["Write Misses"].append(data["perf"]["LLC-store-misses"][0])
+        if PARSE_PERF:
+            d["Load Miss Rate"].append(data["perf"]["LLC-load-misses"][0] / data["perf"]["LLC-loads"][0])
+            d["Write Miss Rate"].append(data["perf"]["LLC-store-misses"][0] / data["perf"]["LLC-stores"][0])
+            d["Loads"].append(data["perf"]["LLC-loads"][0])
+            d["Load Misses"].append(data["perf"]["LLC-load-misses"][0])
+            d["Writes"].append(data["perf"]["LLC-stores"][0])
+            d["Write Misses"].append(data["perf"]["LLC-store-misses"][0])
         index.append(file[2])
 
     df = pd.DataFrame(d, index=index)
