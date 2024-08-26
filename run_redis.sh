@@ -13,6 +13,10 @@
 WORKLOAD=$1
 NODE_CONFIG=$2
 [ ! $4 ] && OUTPUT_FOLDER="output" || OUTPUT_FOLDER=$4
+#ctl.fifo=$5
+#ack.fifo=$6
+CTL_FIFO=ctl.fifo
+ACK_FIFO=ack.fifo
 
 # Change local parameters here
 THREADS=12      # number of threads
@@ -42,44 +46,24 @@ if [ ! $1 ]; then
 fi
 
 # stop and restart redis
-if [ `redis-cli ping` == "PONG" ]; then
+REDIS_STATUS=$(redis-cli ping)
+if [[ $REDIS_STATUS == "PONG" ]]; then
     echo "[Shutting down the Redis...]"
     redis-cli shutdown
-    # sudo systemctl stop redis.service
-    if [ -z `redis-cli ping` ]; then
+   # sudo systemctl stop redis.service
+    if [[ -z `redis-cli ping` ]]; then
         echo "Shutdown success"
     fi
 fi
-
-if [ "$NODE_CONFIG" == "local" ]; then
-    sudo numactl --cpunodebind=0 --membind=0 redis-server --daemonize yes
-elif [ "$NODE_CONFIG" == "remote" ]; then
-    sudo sh ./load_cxl_mem.sh
-    sudo numactl --cpunodebind=0 --membind=1 redis-server --daemonize yes
-elif [ "$NODE_CONFIG" == "interleave" ]; then
-    sudo sh ./load_cxl_mem.sh
-    sudo numactl --cpunodebind=0 --interleave 0,1,2 redis-server --daemonize yes
-else
-    echo "Wrong NUMA config."
-    exit 1
-fi
+redis-server --daemonize yes
 
 mkdir -p $OUTPUT_FOLDER
-
-# create output folder if not exist
-# if [ ! -d $OUTPUT_FOLDER ]; then
-# fi
-
-# lock CPU freq to 2GHz
-sh lock_cpu_freq.sh
-sh check_cpu_freq.sh
 
 REDIS_PID=`pgrep redis-server`
 echo "redis-server pid = ${REDIS_PID}"
 
-
 # Set ITERATION to 10 if QPS_LOOP is 1
-[ $QPS_LOOP == 1 ] && ITERATION=$LOOP_ITER || ITERATION=1
+ITERATION=1
 for ((i=0;i<$ITERATION;i++)); do
 
     if [ $QPS_LOOP == 1 ]; then
@@ -93,21 +77,26 @@ for ((i=0;i<$ITERATION;i++)); do
     redis-cli FLUSHALL
 
     echo "monitoring redis memory usage ..."
-    # ps output RSS size in KB
-    # althernative with pmap? https://stackoverflow.com/a/2816070
-    sh get_mem.sh $REDIS_PID > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_redis_mem.txt&
 
     echo "**************"
     echo "  LOAD PHASE"
     echo "**************"
     echo ""
+
+    # start profiling kernel inst ratio
+    
+    # echo "enable" > $CTL_FIFO
+
+    echo "./bin/ycsb load redis -s -P workloads/workload$WORKLOAD -p 'redis.host=127.0.0.1' -p 'redis.port=6379' \
+        -threads $THREADS > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Load.txt"
+
     ./bin/ycsb load redis -s -P workloads/workload$WORKLOAD -p "redis.host=127.0.0.1" -p "redis.port=6379" \
         -threads $THREADS > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Load.txt
 
-    echo "lauching perf ..."
-    sudo perf stat -e LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses -p $REDIS_PID -o $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf.txt&
+    #echo "lauching perf ..."
+    #perf stat -e LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses -p $REDIS_PID -o $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf.txt&
     #sudo perf stat -e L1-dcache-load-misses,L1-dcache-loads,L1-dcache-stores,L1-icache-load-misses -p $REDIS_PID -o $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf_L1.txt&
-    PERF_PID=$!
+    #PERF_PID=$!
     #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune -collect uarch-exploration -target-pid $REDIS_PID -result-dir $OUTPUT_FOLDER/vtune_out&
 
     echo ""
@@ -115,17 +104,18 @@ for ((i=0;i<$ITERATION;i++)); do
     echo "  RUN PHASE"
     echo "*************"
     echo ""
+
+    ./start
+    
     # actual YSCB client 
     ./bin/ycsb run redis -s -P workloads/workload$WORKLOAD \
         -p "redis.host=127.0.0.1" -p "redis.port=6379" \
         -threads $THREADS -target $TARGET > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Run.txt
-    
-    # end background tasks
-    sudo kill -INT $PERF_PID
-    #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune -r $OUTPUT_FOLDER/vtune_out -command stop
-    #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune  -report summary -result-dir $OUTPUT_FOLDER/vtune_out/ -report-output $OUTPUT_FOLDER/vtune_summary.txt  
-    sudo pkill -f "get_mem.sh"
+
+    # end kernel inst
+    # echo "disable" > $CTL_FIFO
+    ./end
 done
 
 # unlock CPU freq to on demand
-sh unlock_cpu_freq.sh
+# sh unlock_cpu_freq.sh

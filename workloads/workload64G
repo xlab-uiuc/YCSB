@@ -21,7 +21,7 @@
 #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
 #   Request distribution: zipfian
 
-recordcount=10000000
+recordcount=32000000
 operationcount=4000000
 hdrhistogram.percentiles=50,75,90,95,99,99.9,99.99
 
@@ -29,10 +29,10 @@ workload=site.ycsb.workloads.CoreWorkload
 
 readallfields=true
 
-readproportion=0.25
-updateproportion=0.75
+readproportion=0.75
+updateproportion=0.25
 scanproportion=0
 insertproportion=0
 
-requestdistribution=zipfian
+requestdistribution=uniform
 

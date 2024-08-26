@@ -13,24 +13,27 @@
 # permissions and limitations under the License. See accompanying                                                                                                                 
 # LICENSE file.                                                                                                                                                                   
 
+
 # Yahoo! Cloud System Benchmark
-# Workload B: Read mostly workload
-#   Application example: photo tagging; add a tag is an update, but most operations are to read tags
+# Workload A: Update heavy workload
+#   Application example: Session store recording recent actions
 #                        
-#   Read/update ratio: 95/5
+#   Read/update ratio: 50/50
 #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
 #   Request distribution: zipfian
 
-recordcount=10000000
-operationcount=4000000
+#recordcount=1500
+#operationcount=2000
+recordcount=1500
+operationcount=2000
 hdrhistogram.percentiles=50,75,90,95,99,99.9,99.99
 
 workload=site.ycsb.workloads.CoreWorkload
 
 readallfields=true
 
-readproportion=0.25
-updateproportion=0.75
+readproportion=0.5
+updateproportion=0.5
 scanproportion=0
 insertproportion=0
 
