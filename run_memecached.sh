@@ -1,33 +1,11 @@
 #!/bin/bash
 #set -xe
 
-# example commands:
-# mkdir output_experiment3
-# sudo ./run_redis.sh b remote 50000 output_experiment3/output_remote  or:
-# sudo ./run_redis.sh a local loop output_experiment3/output_local
-# python3 process_output.py -i output_experiment3/output_remote/ -o report/experiment3/remote.xlsx
-
-# Command to stop Redis server if nother else would work:
-# /etc/init.d/redis-server stop
-
 # script patameters passed from terminal
 WORKLOAD=$1
-NODE_CONFIG=$2
-[ ! $4 ] && OUTPUT_FOLDER="output" || OUTPUT_FOLDER=$4
+[ ! $2 ] && OUTPUT_FOLDER="output" || OUTPUT_FOLDER=$2
 
-# Change local parameters here
-THREADS=12      # number of threads
-LOOP_BASE=5000     # the starting point of the loop
-LOOP_STEP=10000  # the step of the loop
-LOOP_ITER=7     # the number of iterations of the loop
-if [ ! $3 ]; then
-    TARGET=100000 # requests per second
-elif [ $3 == "loop" ]; then
-    QPS_LOOP=1
-else
-    QPS_LOOP=0
-    TARGET=$3
-fi
+
 
 prepare() {
 	UTIL_FOLDER=`pwd`/utils
@@ -61,45 +39,42 @@ if [ ! $1 ]; then
     exit 0
 fi
 
+kernel=`uname -r`
+content=`cat /sys/kernel/mm/transparent_hugepage/enabled`
+
+if [[ $content == *"[always]"* ]]; then
+    THP_CONFIG="THP_always"
+elif [[ $content == *"[madvise]"* ]]; then
+    THP_CONFIG="THP_madvise"
+elif [[ $content == *"[never]"* ]]; then
+    THP_CONFIG="THP_never"
+else
+    echo "Unable to determine the status of Transparent Huge Pages."
+fi
+
+
+timestamp=`date +%Y-%m-%d_%H-%M-%S`
+OUTPUT_FOLDER=$OUTPUT_FOLDER-${kernel}-${THP_CONFIG}-${timestamp}
+echo "Output folder: $OUTPUT_FOLDER"
 mkdir -p $OUTPUT_FOLDER
 
-# create output folder if not exist
-# if [ ! -d $OUTPUT_FOLDER ]; then
-# fi
-
-# lock CPU freq to 2GHz
-# sh lock_cpu_freq.sh
-# sh check_cpu_freq.sh
-
-# running memcached
-sudo killall memcached
-/usr/bin/memcached -u root -m 131000 -p 11211 -l 127.0.0.1 &
-
-# prepare
-# Set ITERATION to 10 if QPS_LOOP is 1
-[ $QPS_LOOP == 1 ] && ITERATION=$LOOP_ITER || ITERATION=1
+ITERATION=5
 for ((i=0;i<$ITERATION;i++)); do
 
-    if [ $QPS_LOOP == 1 ]; then
-        TARGET=$(($LOOP_BASE+$i*$LOOP_STEP))
-        echo "========= QPS - $TARGET ========="
-    fi
-    # continue # for testing
 
     echo "**************"
     echo "  LOAD PHASE"
     echo "**************"
     echo ""
 
-    ./bin/ycsb load memcached -s -P "workloads/workload$WORKLOAD" -p "memcached.hosts=127.0.0.1" 2>&1
-    # ./bin/ycsb load redis -s -P workloads/workload$WORKLOAD -p "redis.host=127.0.0.1" -p "redis.port=6379" \
-    #     -threads $THREADS > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Load.txt
+    sudo pkill memcached
+    
+    
+    sudo numactl --cpunodebind=0 --membind=0 --physcpubind=0,1,2,3,4,5,6,7 /usr/bin/memcached -u root -m 131000 -p 11211 -l 127.0.0.1 > $OUTPUT_FOLDER/workload${WORKLOAD}_server_iter${i}.log 2>&1 &
+    # /usr/bin/memcached -u root -m 131000 -p 11211 -l 127.0.0.1 > $OUTPUT_FOLDER/workload${WORKLOAD}_server_iter${i}.log 2>&1 &
+    sleep 5
 
-    # echo "lauching perf ..."
-    # sudo perf stat -e LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses -p $REDIS_PID -o $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf.txt&
-    #sudo perf stat -e L1-dcache-load-misses,L1-dcache-loads,L1-dcache-stores,L1-icache-load-misses -p $REDIS_PID -o $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_perf_L1.txt&
-    # PERF_PID=$!
-    #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune -collect uarch-exploration -target-pid $REDIS_PID -result-dir $OUTPUT_FOLDER/vtune_out&
+    sudo taskset --cpu-list 9-15 ./bin/ycsb load memcached -s -P "workloads/workload$WORKLOAD" -p "memcached.hosts=127.0.0.1" 2>&1 | tee $OUTPUT_FOLDER/workload${WORKLOAD}_Load_iter${i}.txt
 
     echo ""
     echo "*************"
@@ -107,24 +82,17 @@ for ((i=0;i<$ITERATION;i++)); do
     echo "*************"
     echo ""
 
-    ./start
-    ./bin/ycsb run memcached -s -P "workloads/workload$WORKLOAD" -p "memcached.hosts=127.0.0.1" 2>&1
-    ./end
-    # actual YSCB client 
-    # ./bin/ycsb run redis -s -P workloads/workload$WORKLOAD \
-    #     -p "redis.host=127.0.0.1" -p "redis.port=6379" \
-    #     -threads $THREADS -target $TARGET > $OUTPUT_FOLDER/workload${WORKLOAD}_${NODE_CONFIG}_qps${TARGET}_Run.txt
-    
-    # end background tasks
-    sudo kill -INT $PERF_PID
-    #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune -r $OUTPUT_FOLDER/vtune_out -command stop
-    #sudo /opt/intel/oneapi/vtune/2023.0.0/bin64/vtune  -report summary -result-dir $OUTPUT_FOLDER/vtune_out/ -report-output $OUTPUT_FOLDER/vtune_summary.txt  
-    sudo pkill -f "get_mem.sh"
+
+    sudo taskset --cpu-list 9-15 ./bin/ycsb run memcached -s -P "workloads/workload$WORKLOAD" -p "memcached.hosts=127.0.0.1" 2>&1 | tee $OUTPUT_FOLDER/workload${WORKLOAD}_Run_iter${i}.txt
+
+    sudo pkill memcached
+    sleep 5
 done
 
-# unlock CPU freq to on demand
-# sh unlock_cpu_freq.sh
 
-# quit
+echo "save output to $OUTPUT_FOLDER"
 
-sudo killall memcached
+sudo chmod +666 $OUTPUT_FOLDER
+sudo -u siyuan python3 collect_ycsb_result.py --folder $OUTPUT_FOLDER
+
+
